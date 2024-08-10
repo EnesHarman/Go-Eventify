@@ -11,7 +11,6 @@ import (
 )
 
 var eventRepositoryTest = repository.NewEventRepository()
-var client mongo.Client
 
 //func TestMain(m *testing.M) {
 //	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -36,6 +35,15 @@ func TestInsertOne(t *testing.T) {
 	t.Run("InsertEvent", func(t *testing.T) {
 		err := eventRepositoryTest.InsertEvent(event)
 		assert.Nil(t, err)
+	})
+}
+
+func TestGetEvents(t *testing.T) {
+	page, size := int64(1), int64(10)
+	t.Run("GetEvents", func(t *testing.T) {
+		events, err := eventRepositoryTest.GetEvents(page, size)
+		assert.Nil(t, err)
+		assert.NotNil(t, events)
 	})
 }
 

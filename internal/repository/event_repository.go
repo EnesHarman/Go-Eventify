@@ -12,6 +12,7 @@ import (
 
 type EventRepository interface {
 	InsertEvent(event model.Event) error
+	GetEvents(page, size int64) ([]model.Event, error)
 }
 
 type MongoEventRepository struct {
@@ -35,6 +36,33 @@ func (repository MongoEventRepository) InsertEvent(event model.Event) error {
 	}
 
 	return nil
+}
+
+func (repository MongoEventRepository) GetEvents(page, size int64) ([]model.Event, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	clientOptions := options.Client().ApplyURI("mongodb://admin:password@localhost:27017")
+	client, err := mongo.Connect(ctx, clientOptions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to MongoDB: %v", err)
+	}
+	defer disconnect(client, ctx)
+
+	collection := client.Database("event").Collection("events")
+	cursor, err := collection.Find(ctx, bson.D{}, options.Find().SetSkip((page-1)*size).SetLimit(size))
+	if err != nil {
+		return nil, fmt.Errorf("failed to find documents: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	events := make([]model.Event, 0)
+	if err = cursor.All(ctx, &events); err != nil {
+		return nil, fmt.Errorf("failed to decode documents: %v", err)
+	}
+
+	return events, nil
+
 }
 
 func NewEventRepository() EventRepository {
