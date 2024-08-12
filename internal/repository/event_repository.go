@@ -19,18 +19,15 @@ type MongoEventRepository struct {
 }
 
 func (repository MongoEventRepository) InsertEvent(event model.Event) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, client, err, cancel := generateClient()
 	defer cancel()
-
-	clientOptions := options.Client().ApplyURI("mongodb://admin:password@localhost:27017")
-	client, err := mongo.Connect(ctx, clientOptions)
+	defer disconnect(client, ctx)
 	if err != nil {
 		return fmt.Errorf("failed to connect to MongoDB: %v", err)
 	}
-	defer disconnect(client, ctx)
 
 	collection := client.Database("event").Collection("events")
-	_, err = collection.InsertOne(ctx, bson.D{{"code", event.Code}, {"userId", event.UserId}, {"ts", event.Ts}})
+	_, err = collection.InsertOne(ctx, bson.D{{"code", event.Code}, {"userId", event.UserId}, {"ts", time.Now()}})
 	if err != nil {
 		return fmt.Errorf("failed to insert document: %v", err)
 	}
@@ -39,15 +36,12 @@ func (repository MongoEventRepository) InsertEvent(event model.Event) error {
 }
 
 func (repository MongoEventRepository) GetEvents(page, size int64) ([]model.Event, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, client, err, cancel := generateClient()
 	defer cancel()
-
-	clientOptions := options.Client().ApplyURI("mongodb://admin:password@localhost:27017")
-	client, err := mongo.Connect(ctx, clientOptions)
+	defer disconnect(client, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to MongoDB: %v", err)
 	}
-	defer disconnect(client, ctx)
 
 	collection := client.Database("event").Collection("events")
 	cursor, err := collection.Find(ctx, bson.D{}, options.Find().SetSkip((page-1)*size).SetLimit(size))
@@ -62,7 +56,13 @@ func (repository MongoEventRepository) GetEvents(page, size int64) ([]model.Even
 	}
 
 	return events, nil
+}
 
+func generateClient() (context.Context, *mongo.Client, error, func()) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	clientOptions := options.Client().ApplyURI("mongodb://admin:password@localhost:27017")
+	client, err := mongo.Connect(ctx, clientOptions)
+	return ctx, client, err, cancel
 }
 
 func NewEventRepository() EventRepository {
